@@ -1,16 +1,29 @@
 # 抖音来客订单同步系统 (Douyin Life Order Sync)
 
-自动从抖音开放平台拉取本地生活订单数据并存储到PostgreSQL数据库。
+自动从抖音开放平台拉取本地生活订单数据并存储到PostgreSQL数据库，支持Excel文件导入。
 
 ## ✨ 功能特性
 
+### API订单同步
 - 🔁 **自动同步** - 定期拉取订单数据，无需人工干预
-- 🔓 **手机号解密** - 自动解密订单中的加密手机号
+- 📱 **手机号解密** - 自动解密订单中的加密手机号
 - 📄 **智能分页** - 按天切分，支持断点续传，避免数据丢失
 - ⏰ **灵活配置** - 支持天数、日期、时间戳三种时间范围配置
 - 🐳 **Docker支持** - 完整的容器化部署方案
 - 💾 **数据安全** - Upsert机制避免重复，JSONB存储原始数据
-- 📊 **实时监控** - 心跳监控和远程控制指令
+
+### Excel导入
+- 📊 **售卖明细导入** - 支持售卖明细Excel文件自动导入
+- 🎫 **旅行社预约明细导入** - 支持多sheet旅行社预约明细导入
+- 🔄 **自动监控** - 实时监控data文件夹，自动导入新文件
+- 🗑️ **自动清理** - 导入成功后自动删除Excel文件
+- 📈 **进度显示** - 详细的导入进度和调试信息
+- ⚙️ **智能过滤** - 自动跳过"说明"类sheet和空行
+
+### 监控管理
+- 💓 **心跳监控** - 实时监控程序运行状态
+- 🎮 **远程控制** - 支持通过数据库发送STOP/START指令
+- 📊 **状态记录** - 记录任务状态、心跳时间、错误信息
 
 ## 📋 技术栈
 
@@ -74,6 +87,195 @@ python main.py
 ```
 
 程序会自动开始拉取订单数据，默认每小时同步一次。
+
+## 📊 Excel导入
+
+### 功能说明
+
+支持两种Excel文件类型的自动导入：
+
+1. **售卖明细** - 文件名格式：`售卖明细_*.xlsx`
+2. **旅行社预约明细** - 文件名格式：`旅行社预约明细_*.xlsx`
+
+### 使用方法
+
+#### 1. 运行Excel导入程序
+
+```bash
+# 终端1：运行Excel导入监控
+python excel_import.py
+```
+
+程序会自动监控`data`文件夹，每10秒扫描一次。
+
+#### 2. 放入Excel文件
+
+将Excel文件放入`data`文件夹：
+
+```bash
+data/
+├── 售卖明细_2024-12-27_2025-12-07.xlsx
+└── 旅行社预约明细_2025-12-07.xlsx
+```
+
+#### 3. 自动导入
+
+程序会自动：
+- 识别Excel文件类型
+- 解析数据内容
+- 保存到数据库
+- 导入成功后删除文件
+
+### Excel文件格式
+
+#### 售卖明细Excel
+
+**文件名：** `售卖明细_YYYY-MM-DD_YYYY-MM-DD.xlsx`
+
+**必选字段：**
+- 所属订单ID
+- 子订单ID
+- 券码状态
+- 核销时间
+- 订单实收
+- 售卖金额
+- 商家货款出资补贴
+- 商品实付
+- 平台补贴
+- 平台补贴优惠明细
+- 软件服务费
+- 达人佣金
+- 增量宝佣金
+- 预售价(只针对酒旅商家)
+- 预约加价(只针对酒旅商家)
+- 软件服务费率
+- 带货角色
+- 成交渠道
+- 订单归属人昵称
+- 订单归属人uid
+
+#### 旅行社预约明细Excel
+
+**文件名：** `旅行社预约明细_YYYY-MM-DD.xlsx`
+
+**工作表：**
+- 未预约-1
+- 待接单-1
+- 已预约-1
+- 已完成-1
+- 已拒单-1
+
+**必选字段：**
+- 订单编号
+- 商品名称
+- 商品品类
+- 商品类型
+- 购买份数
+
+### 导入日志示例
+
+```
+2026-01-03 00:05:46 - 启动Excel导入程序
+2026-01-03 00:05:46 - 开始新一轮扫描
+2026-01-03 00:05:46 - 开始导入售卖明细: 售卖明细_2024-12-27_2025-12-07.xlsx
+  打开工作表: 售卖明细
+  总行数: 11668
+  表头: ['所属订单ID', '子单ID', '订单标签', '支付时间', '商品名称']...
+  已读取 1000 行...
+  ...
+  读取完成: 11667 行有效数据 (跳过 0 行空数据)
+解析完成: 11667 条记录
+✅ 售卖明细导入完成: 11667 条记录
+✅ 已删除已导入文件: 售卖明细_2024-12-27_2025-12-07.xlsx
+
+开始导入旅行社预约明细: 旅行社预约明细_2025-12-07.xlsx
+  发现 6 个工作表
+  检查工作表: 未预约-1
+  读取完成: 113 行有效数据
+  ...
+✅ 旅行社预约明细导入完成: 9903 条记录
+✅ 已删除已导入文件: 旅行社预约明细_2025-12-07.xlsx
+
+✅ 导入完成: 21570 条记录
+```
+
+### 数据库表结构
+
+#### orders_excel（售卖明细）
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| `order_id` | VARCHAR | 所属订单ID |
+| `sub_order_id` | VARCHAR | 子订单ID |
+| `coupon_status` | VARCHAR | 券码状态 |
+| `verification_time` | TIMESTAMP | 核销时间 |
+| `actual_receipt` | FLOAT | 订单实收 |
+| `sale_amount` | FLOAT | 售卖金额 |
+| `merchant_subsidy` | FLOAT | 商家货款出资补贴 |
+| `product_payment` | FLOAT | 商品实付 |
+| `platform_subsidy` | FLOAT | 平台补贴 |
+| `platform_discount_detail` | VARCHAR | 平台补贴优惠明细 |
+| `software_fee` | FLOAT | 软件服务费 |
+| `talent_commission` | FLOAT | 达人佣金 |
+| `increment_commission` | FLOAT | 增量宝佣金 |
+| `preset_price` | FLOAT | 预售价 |
+| `booking_surcharge` | FLOAT | 预约加价 |
+| `software_fee_rate` | VARCHAR | 软件服务费率 |
+| `sales_role` | VARCHAR | 带货角色 |
+| `deal_channel` | VARCHAR | 成交渠道 |
+| `owner_nickname` | VARCHAR | 订单归属人昵称 |
+| `owner_uid` | VARCHAR | 订单归属人uid |
+| `raw_excel` | JSONB | 原始Excel数据 |
+| `file_name` | VARCHAR | 文件名 |
+| `import_time` | TIMESTAMP | 导入时间 |
+
+#### travel_bookings（旅行社预约明细）
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| `order_number` | VARCHAR | 订单编号 |
+| `travel_date` | DATE | 出行日期 |
+| `booking_status` | VARCHAR | 预约状态 |
+| `raw_excel` | JSONB | 原始Excel数据 |
+| `file_name` | VARCHAR | 文件名 |
+| `sheet_name` | VARCHAR | 工作表名 |
+| `import_time` | TIMESTAMP | 导入时间 |
+
+### 查询示例
+
+#### 查询售卖明细
+
+```sql
+SELECT 
+    file_name,
+    COUNT(*) as count,
+    SUM(actual_receipt) as total_amount
+FROM orders_excel
+GROUP BY file_name
+ORDER BY file_name DESC;
+```
+
+#### 查询旅行社预约明细
+
+```sql
+SELECT 
+    sheet_name,
+    booking_status,
+    COUNT(*) as count
+FROM travel_bookings
+GROUP BY sheet_name, booking_status
+ORDER BY sheet_name;
+```
+
+#### 按预约状态统计
+
+```sql
+SELECT 
+    booking_status,
+    COUNT(*) as count
+FROM travel_bookings
+GROUP BY booking_status;
+```
 
 ## ⚙️ 配置说明
 
@@ -262,14 +464,18 @@ docker stop douyin-sync
 
 ```
 douyin_getorder/
-├── main.py              # 主程序入口
+├── main.py              # API订单同步主程序
+├── excel_import.py       # Excel导入主程序
+├── excel_importer.py    # Excel导入器
 ├── config.py            # 配置管理
 ├── database.py          # 数据库操作
 ├── douyin_api.py       # 抖音API客户端
 ├── task_manager.py     # 任务监控
 ├── requirements.txt    # Python依赖
 ├── .env.example       # 环境变量模板
-└── README.md          # 项目说明
+├── README.md          # 项目说明
+├── CHANGELOG.md       # 版本更新记录
+└── data/              # Excel文件存放目录
 ```
 
 ## 📄 许可证
