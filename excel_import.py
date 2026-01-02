@@ -36,12 +36,12 @@ class ExcelImportLoop:
         # 初始化数据库管理器
         self.db_manager = DatabaseManager(config.db_url, config.app_secret)
         
-        # 通用迁移：自动检查并添加缺失字段
-        self.db_manager.migrate_all_models()
-        
-        # 创建数据表
+        # 创建数据表（先创建表）
         self.db_manager.create_tables()
         logger.info("数据库表创建完成")
+        
+        # 通用迁移：自动检查并添加缺失字段（后迁移字段）
+        self.db_manager.migrate_all_models()
         
         # 初始化Excel导入器
         self.excel_importer = ExcelImporter(self.db_manager)
