@@ -12,3 +12,6 @@ python-dotenv>=1.0.0
 
 # PostgreSQL 数据库驱动
 psycopg2-binary>=2.9.0
+
+# Excel文件读取
+openpyxl>=3.1.0

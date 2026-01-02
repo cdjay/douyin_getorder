@@ -2,11 +2,11 @@
 数据库模块
 负责数据库连接初始化、Order 模型定义、以及订单数据的 Upsert 逻辑
 """
-from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, Integer, update, insert, text
+from sqlalchemy import create_engine, Column, String, DateTime, Text, Float, Integer, update, insert, text, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.dialects.postgresql import insert as pg_insert, JSONB
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Dict, Any, Optional
 import re
 import logging
@@ -59,6 +59,66 @@ class TaskMonitor(Base):
     error_message = Column(Text, comment='错误信息')
     created_at = Column(DateTime, default=datetime.now, comment='创建时间')
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+
+
+class OrderExcel(Base):
+    """售卖明细数据模型"""
+    
+    __tablename__ = 'orders_excel'
+    
+    # 主键
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # 提取的字段
+    order_id = Column(String(64), index=True, comment='所属订单ID')
+    sub_order_id = Column(String(64), comment='子订单ID')
+    coupon_status = Column(String(32), comment='券码状态')
+    verification_time = Column(DateTime, comment='核销时间')
+    actual_receipt = Column(Float, comment='订单实收')
+    sale_amount = Column(Float, comment='售卖金额')
+    merchant_subsidy = Column(Float, comment='商家货款出资补贴')
+    product_payment = Column(Float, comment='商品实付')
+    platform_subsidy = Column(Float, comment='平台补贴')
+    platform_discount_detail = Column(Text, comment='平台补贴优惠明细')
+    software_fee = Column(Float, comment='软件服务费')
+    talent_commission = Column(Float, comment='达人佣金')
+    increment_commission = Column(Float, comment='增量宝佣金')
+    preset_price = Column(Float, comment='预售价(只针对酒旅商家)')
+    booking_surcharge = Column(Float, comment='预约加价(只针对酒旅商家)')
+    software_fee_rate = Column(String(32), comment='软件服务费率')
+    sales_role = Column(String(32), comment='带货角色')
+    deal_channel = Column(String(64), comment='成交渠道')
+    owner_nickname = Column(String(255), comment='订单归属人昵称')
+    owner_uid = Column(String(64), comment='订单归属人uid')
+    
+    # 原始数据
+    raw_excel = Column(JSONB, comment='原始Excel数据')
+    
+    # 文件信息
+    file_name = Column(String(255), comment='Excel文件名')
+    import_time = Column(DateTime, default=datetime.now, comment='导入时间')
+
+
+class TravelBooking(Base):
+    """旅行社预约明细数据模型"""
+    
+    __tablename__ = 'travel_bookings'
+    
+    # 主键
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    
+    # 提取的字段
+    order_number = Column(String(64), index=True, comment='订单编号')
+    travel_date = Column(Date, comment='出行日期')
+    booking_status = Column(String(32), comment='预约状态')
+    
+    # 原始数据
+    raw_excel = Column(JSONB, comment='原始Excel数据')
+    
+    # 文件信息
+    file_name = Column(String(255), comment='Excel文件名')
+    import_time = Column(DateTime, default=datetime.now, comment='导入时间')
+    sheet_name = Column(String(100), comment='Excel工作表名')
 
 
 class DatabaseManager:
@@ -511,6 +571,69 @@ class DatabaseManager:
         finally:
             session.close()
     
+    def save_excel_orders(self, excel_data: List[Dict[str, Any]], file_name: str) -> int:
+        """
+        保存售卖明细Excel数据到数据库
+        
+        Args:
+            excel_data: Excel数据列表
+            file_name: Excel文件名
+            
+        Returns:
+            int: 成功保存的记录数
+        """
+        if not excel_data:
+            return 0
+        
+        session = self.get_session()
+        try:
+            # 使用 PostgreSQL 的 ON CONFLICT 实现 Upsert
+            # 唯一键：sub_order_id
+            stmt = pg_insert(OrderExcel).values(excel_data)
+            stmt = stmt.on_conflict_do_nothing()  # 重复则跳过
+            
+            result = session.execute(stmt)
+            session.commit()
+            
+            return result.rowcount
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
+    def save_travel_bookings(self, booking_data: List[Dict[str, Any]], file_name: str, sheet_name: str) -> int:
+        """
+        保存旅行社预约明细数据到数据库
+        
+        Args:
+            booking_data: 预约数据列表
+            file_name: Excel文件名
+            sheet_name: 工作表名
+            
+        Returns:
+            int: 成功保存的记录数
+        """
+        if not booking_data:
+            return 0
+        
+        session = self.get_session()
+        try:
+            # 使用 PostgreSQL 的 ON CONFLICT 实现 Upsert
+            # 唯一键：order_number + sheet_name
+            stmt = pg_insert(TravelBooking).values(booking_data)
+            stmt = stmt.on_conflict_do_nothing()  # 重复则跳过
+            
+            result = session.execute(stmt)
+            session.commit()
+            
+            return result.rowcount
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+    
     def ensure_columns(self, model_class):
         """
         通用字段迁移：确保模型的所有字段都存在于数据库中
@@ -598,7 +721,7 @@ class DatabaseManager:
         logger.info("开始数据库模型迁移...")
         
         # 直接指定要迁移的模型（兼容所有SQLAlchemy版本）
-        models_to_migrate = [Order, TaskMonitor]
+        models_to_migrate = [Order, TaskMonitor, OrderExcel, TravelBooking]
         
         for model_class in models_to_migrate:
             if hasattr(model_class, '__tablename__'):
