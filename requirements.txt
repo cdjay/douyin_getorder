@@ -1,0 +1,14 @@
+# HTTP 请求库
+requests>=2.31.0
+
+# ORM 数据库操作
+sqlalchemy>=2.0.0
+
+# 加密解密库（AES-GCM）
+cryptography>=41.0.0
+
+# 环境变量管理
+python-dotenv>=1.0.0
+
+# PostgreSQL 数据库驱动
+psycopg2-binary>=2.9.0
