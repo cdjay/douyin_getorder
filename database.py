@@ -614,19 +614,33 @@ class DatabaseManager:
         if not booking_data:
             return 0
         
+        logger.info(f"  准备保存 {len(booking_data)} 条记录到数据库")
+        
         session = self.get_session()
         try:
             # 使用 PostgreSQL 的 ON CONFLICT 实现 Upsert
             # 唯一键：order_number
+            # 冲突时更新所有字段（包括travel_date）
             stmt = pg_insert(TravelBooking).values(booking_data)
-            stmt = stmt.on_conflict_do_nothing()  # 重复则跳过
+            stmt = stmt.on_conflict_do_update(
+                index_elements=['order_number'],
+                set_={
+                    'travel_date': stmt.excluded.travel_date,
+                    'booking_status': stmt.excluded.booking_status,
+                    'booking_count': stmt.excluded.booking_count,
+                    'raw_excel': stmt.excluded.raw_excel,
+                    'import_time': stmt.excluded.import_time
+                }
+            )
             
             result = session.execute(stmt)
             session.commit()
             
+            logger.info(f"  ✅ 数据库更新: {result.rowcount} 条记录")
             return result.rowcount
         except Exception as e:
             session.rollback()
+            logger.error(f"  ❌ 数据库写入失败: {e}", exc_info=True)
             raise e
         finally:
             session.close()
