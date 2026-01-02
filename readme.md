@@ -137,6 +137,7 @@ ORDER_STATUS=2
 | `sku_id` | VARCHAR | 商品SKU ID | 1760543044430907 |
 | `sku_name` | VARCHAR | 商品名称 | 三星堆+熊猫基地精品团 |
 | `pay_amount` | FLOAT | 支付金额 | 429.00 |
+| `count` | INTEGER | 订单数量 | 1 |
 | `pay_time` | TIMESTAMP | 支付时间 | 2024-01-25 14:31:54 |
 | `create_time` | TIMESTAMP | 订单创建时间 | 2024-01-25 14:31:52 |
 | `update_time` | TIMESTAMP | 订单更新时间 | 2024-02-25 10:30:33 |

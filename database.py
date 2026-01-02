@@ -32,6 +32,7 @@ class Order(Base):
     sku_id = Column(String(64), comment='商品SKU ID')
     sku_name = Column(String(255), comment='商品名称（交易快照）')
     pay_amount = Column(Float, comment='支付金额')
+    count = Column(Integer, default=1, comment='订单数量')
     pay_time = Column(DateTime, comment='支付时间')
     create_time = Column(DateTime, index=True, comment='订单创建时间')
     update_time = Column(DateTime, comment='订单更新时间')
@@ -343,6 +344,7 @@ class DatabaseManager:
                     'sku_id': sku_id,
                     'sku_name': order_data.get('sku_name'),
                     'pay_amount': order_data.get('pay_amount'),
+                    'count': order_data.get('count', 1),
                     'pay_time': pay_time,
                     'create_time': create_time,
                     'update_time': update_time,
@@ -361,6 +363,7 @@ class DatabaseManager:
                     'sku_id': stmt.excluded.sku_id,
                     'sku_name': stmt.excluded.sku_name,
                     'pay_amount': stmt.excluded.pay_amount,
+                    'count': stmt.excluded.count,
                     'pay_time': stmt.excluded.pay_time,
                     'update_time': stmt.excluded.update_time,
                     'source_order_id': stmt.excluded.source_order_id,
