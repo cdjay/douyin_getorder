@@ -1,60 +1,284 @@
-# 抖音订单同步系统 (Douyin Order Sync) - 开发规范与架构指南
+# 抖音生活服务订单同步系统
 
-## ⚠️ 给 AI 助手的核心指令 (SYSTEM PROMPT)
-**你在修改本项目代码时，必须严格遵守以下架构原则和开发规范。严禁擅自引入复杂的 MVC 架构或修改核心分页逻辑。**
+自动从抖音开放平台拉取生活服务订单数据并存储到PostgreSQL数据库。
 
----
+## ✨ 功能特性
 
-## 1. 项目架构 (Flat Structure)
-本项目采用 **扁平化模块** 结构，拒绝深层嵌套。所有功能通过以下几个文件拆分：
+- 🔁 **自动同步** - 定期拉取订单数据，无需人工干预
+- 🔓 **手机号解密** - 自动解密订单中的加密手机号
+- 📄 **智能分页** - 按天切分，支持断点续传，避免数据丢失
+- ⏰ **灵活配置** - 支持天数、日期、时间戳三种时间范围配置
+- 🐳 **Docker支持** - 完整的容器化部署方案
+- 💾 **数据安全** - Upsert机制避免重复，JSONB存储原始数据
+- 📊 **实时监控** - 心跳监控和远程控制指令
 
-| 文件名 | 职责描述 |
-| :--- | :--- |
-| **`main.py`** | **入口调度**。负责启动死循环、捕捉 Docker 退出信号、调用 TaskManager 和 API。不包含具体业务逻辑。 |
-| **`douyin_api.py`** | **核心 API 逻辑**。包含 `decrypt` (解密)、`get_token` (鉴权)、`fetch_orders` (分页拉取)。 |
-| **`database.py`** | **数据存储**。包含 DB 连接初始化、`Order` 模型定义、`save_orders` (Upsert逻辑)。 |
-| **`task_manager.py`**| **监控与通信**。负责向数据库汇报心跳 (Heartbeat)，并读取后台控制指令 (STOP/START)。 |
-| **`config.py`** | **配置管理**。从 `.env` 读取环境变量 (APP_ID, SECRET, DB_URL)。 |
-| **`.env`** | **敏感信息**。不要提交到 Git。 |
+## 📋 技术栈
 
----
+- **Python 3.7+** - 核心语言
+- **PostgreSQL** - 数据存储
+- **SQLAlchemy** - ORM框架
+- **Requests** - HTTP请求
+- **Cryptography** - AES加密解密
 
-## 2. 关键开发规范 (Critical Rules)
+## 🚀 快速开始
 
-### 2.1 API 分页逻辑 (Strict)
-抖音接口的分页极其容易出错，**必须**遵循以下逻辑：
-1.  **Cursor 类型**：`cursor` 参数必须且只能是 **`int` (整数)**。严禁传入字符串 `"0"` 或 `"第一页"`。
-2.  **初始值**：第一页 `cursor = 0`。
-3.  **循环策略**：采用 **“按天切分 + 内部循环”** 的双层结构。
-    * 外层：按天遍历 (`start_time` 到 `end_time` 步长为 1 天)。
-    * 内层：处理当天的 `cursor` 翻页。
-4.  **死循环熔断**：必须检测 `next_cursor == current_cursor`，防止 API 返回假成功导致死循环。
+### 1. 克隆项目
 
-### 2.2 数据库存储策略 (PostgreSQL + JSONB)
-本项目使用 **PostgreSQL** 作为数据库。
-1.  **JSON 处理**：`raw_data` 字段必须使用 PostgreSQL 原生的 **`JSONB`** 类型（不是 `JSON`，也不是 `Text`），以便支持高性能查询和索引。
-2.  **Upsert 逻辑**：
-    * 使用 SQLAlchemy 的 `dialects.postgresql.insert`。
-    * 逻辑为：`INSERT INTO ... ON CONFLICT (order_id) DO UPDATE SET ...`。
-3.  **表结构设计**：
-    * `order_id`: VARCHAR / TEXT (Primary Key)
-    * `sku_name`: VARCHAR / TEXT (快照)
-    * `raw_data`: **JSONB** (存储原始 API 响应)
+```bash
+git clone https://github.com/cdjay/douyin_getorder.git
+cd douyin_getorder
+```
 
-### 2.3 监控与状态 (Decoupling)
-严禁在本项目中引入 Web 框架 (Flask/Django)。
-* **状态汇报**：Worker 通过 `task_manager.py` 更新数据库表 `task_monitor`。
-* **指令接收**：Worker 轮询数据库表中的 `target_command` 字段（如 'STOP'），实现后台控制。
+### 2. 创建虚拟环境
 
-### 2.4 Docker 适配
-* **运行模式**：程序设计为 **驻守型 (Service Mode)**，通过 `while True` 循环运行。
-* **路径处理**：严禁使用绝对路径 (如 `D:/...`)，必须使用 `os.path.join(BASE_DIR, ...)` 相对路径。
-* **退出处理**：`main.py` 必须注册 `signal.SIGTERM` 和 `signal.SIGINT`，以支持 Docker 的优雅退出。
+```bash
+python -m venv venv
 
----
+# Windows
+venv\Scripts\activate
 
-## 3. 依赖管理
-* 新增第三方库后，必须更新 `requirements.txt`。
-* 数据库驱动：使用 `psycopg2-binary`。
-* ORM：使用 `SQLAlchemy`。
-* 严禁随意更换加密库，`douyin_api.py` 中的 AES-GCM 解密逻辑经过验证，**非必要不修改**。
+# Linux/Mac
+source venv/bin/activate
+```
+
+### 3. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. 配置环境变量
+
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 编辑.env文件，填入真实配置
+# Windows: notepad .env
+# Linux/Mac: nano .env
+```
+
+**必要配置项：**
+
+| 配置项 | 说明 | 获取方式 |
+|--------|------|----------|
+| `DB_URL` | 数据库连接字符串 | 自行配置PostgreSQL |
+| `APPID` | 抖音应用ID | [抖音开放平台](https://open.douyin.com/) |
+| `AppSecret` | 抖音应用密钥 | [抖音开放平台](https://open.douyin.com/) |
+| `ACCOUNT_ID` | 抖音账号ID | [抖音开放平台](https://open.douyin.com/) |
+
+### 5. 运行程序
+
+```bash
+python main.py
+```
+
+程序会自动开始拉取订单数据，默认每小时同步一次。
+
+## ⚙️ 配置说明
+
+### 时间范围配置
+
+**方式1：指定日期范围（推荐）**
+
+```env
+START_DATE=2024-01-01
+END_DATE=2024-12-31
+```
+
+或指定具体时间：
+
+```env
+START_DATE=2024-01-01 10:00:00
+END_DATE=2024-01-31 18:00:00
+```
+
+**方式2：指定时间戳**
+
+```env
+START_TIME=1704067200
+END_TIME=1735660799
+```
+
+**方式3：指定天数（默认）**
+
+```env
+SYNC_DAYS=7
+```
+表示同步最近7天的订单数据。
+
+### 订单状态筛选
+
+```env
+ORDER_STATUS=2
+```
+
+常用状态值：
+- 不配置：拉取所有状态
+- `2`：已完成
+- `3`：退款中
+- `4`：已退款
+
+### 其他配置
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `SYNC_INTERVAL` | 3600 | 同步间隔（秒） |
+| `PAGE_SIZE` | 50 | 每页订单数量（1-100） |
+| `GET_SECRET_NUMBER` | false | 是否查询配送信息 |
+| `USE_CREATE_TIME` | true | 是否使用创单时间而非修改时间 |
+
+## 📊 数据库字段说明
+
+| 字段名 | 类型 | 说明 | 示例 |
+|--------|------|------|------|
+| `order_id` | VARCHAR | 订单ID（主键） | 1077940305329948933 |
+| `order_status` | VARCHAR | 订单状态 | 1（已完成） |
+| `sku_id` | VARCHAR | 商品SKU ID | 1760543044430907 |
+| `sku_name` | VARCHAR | 商品名称 | 三星堆+熊猫基地精品团 |
+| `pay_amount` | FLOAT | 支付金额 | 429.00 |
+| `pay_time` | TIMESTAMP | 支付时间 | 2024-01-25 14:31:54 |
+| `create_time` | TIMESTAMP | 订单创建时间 | 2024-01-25 14:31:52 |
+| `update_time` | TIMESTAMP | 订单更新时间 | 2024-02-25 10:30:33 |
+| `source_order_id` | VARCHAR | 来源订单ID | 1078263594007388830 |
+| `phone` | VARCHAR | 手机号（已解密） | 138****0000 |
+| `raw_data` | JSONB | 完整原始数据 | API响应的完整JSON |
+
+## 💻 查询示例
+
+### 查询最新订单
+
+```sql
+SELECT 
+    order_id, 
+    order_status,
+    sku_name, 
+    pay_amount, 
+    pay_time, 
+    phone 
+FROM orders 
+ORDER BY pay_time DESC 
+LIMIT 10;
+```
+
+### 按手机号查询
+
+```sql
+SELECT * FROM orders WHERE phone = '138****0000';
+```
+
+### 按日期统计
+
+```sql
+SELECT 
+    DATE(pay_time) as date,
+    COUNT(*) as order_count,
+    SUM(pay_amount) as total_amount
+FROM orders
+GROUP BY DATE(pay_time)
+ORDER BY date DESC;
+```
+
+### 按商品统计
+
+```sql
+SELECT 
+    sku_id,
+    sku_name,
+    COUNT(*) as order_count,
+    SUM(pay_amount) as total_amount
+FROM orders
+GROUP BY sku_id, sku_name
+ORDER BY order_count DESC;
+```
+
+## 🐳 Docker部署
+
+### 1. 构建镜像
+
+```bash
+docker build -t douyin-order-sync .
+```
+
+### 2. 运行容器
+
+```bash
+docker run -d \
+  --name douyin-sync \
+  --restart unless-stopped \
+  -e DB_URL=postgresql://user:pass@host:5432/dbname \
+  -e APPID=your_app_id \
+  -e AppSecret=your_secret \
+  -e ACCOUNT_ID=your_account_id \
+  douyin-order-sync
+```
+
+### 3. 查看日志
+
+```bash
+docker logs -f douyin-sync
+```
+
+### 4. 停止容器
+
+```bash
+docker stop douyin-sync
+```
+
+## ❓ 常见问题
+
+### 1. 如何获取抖音应用ID和密钥？
+
+访问 [抖音开放平台](https://open.douyin.com/)，创建应用后即可获取。
+
+### 2. 手机号显示乱码或解密失败？
+
+请检查`.env`文件中的`AppSecret`是否正确。密钥用于解密手机号，错误会导致解密失败。
+
+### 3. 数据库连接失败？
+
+请检查：
+- PostgreSQL服务是否运行
+- 数据库连接字符串格式是否正确
+- 数据库用户权限是否足够
+
+### 4. 订单数据不完整？
+
+程序采用智能分页，支持断点续传。如果发现数据不完整：
+- 检查日志是否有错误信息
+- 确认时间范围配置是否正确
+- 考虑分批次拉取历史数据
+
+### 5. 如何停止程序？
+
+```bash
+# 方法1：Ctrl+C
+# 方法2：Docker环境
+docker stop douyin-sync
+```
+
+## 📁 项目结构
+
+```
+douyin_getorder/
+├── main.py              # 主程序入口
+├── config.py            # 配置管理
+├── database.py          # 数据库操作
+├── douyin_api.py       # 抖音API客户端
+├── task_manager.py     # 任务监控
+├── requirements.txt    # Python依赖
+├── .env.example       # 环境变量模板
+└── README.md          # 项目说明
+```
+
+## 📄 许可证
+
+MIT License
+
+## 🤝 贡献
+
+欢迎提交Issue和Pull Request！
+
+## 📮 联系方式
+
+如有问题或建议，欢迎提交Issue。
