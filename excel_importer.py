@@ -90,7 +90,11 @@ class ExcelImporter:
             
             # 获取表头（第一行）
             headers = [cell.value for cell in sheet[1]]
-            logger.info(f"  表头: {headers[:5]}...")  # 只打印前5个
+            logger.info(f"  完整表头: {headers}")  # 打印完整表头
+            
+            # 检查是否有"出行日期"列
+            if '出行日期' not in headers:
+                logger.warning(f"  ⚠️ 警告：表头中没有'出行日期'列！可用列: {headers}")
             
             # 读取数据行
             data = []
@@ -211,20 +215,21 @@ class ExcelImporter:
     def _parse_date(self, value) -> date:
         """解析日期（支持多种格式）"""
         if value is None:
+            logger.warning(f"  日期为None")
             return None
         
         # 已经是datetime或date对象
         if isinstance(value, datetime):
-            logger.debug(f"  日期格式: datetime -> {value}")
+            logger.info(f"  日期格式: datetime -> {value}")
             return value.date()
         if isinstance(value, date):
-            logger.debug(f"  日期格式: date -> {value}")
+            logger.info(f"  日期格式: date -> {value}")
             return value
         
         # 字符串格式：尝试解析常见日期格式
         if isinstance(value, str):
             date_str = value.strip()
-            logger.debug(f"  日期格式: string -> {date_str}")
+            logger.info(f"  日期格式: string -> {date_str}")
             
             if not date_str:
                 logger.warning(f"  日期为空字符串")
@@ -234,37 +239,39 @@ class ExcelImporter:
             if '-' in date_str:
                 try:
                     result = datetime.strptime(date_str, '%Y-%m-%d').date()
-                    logger.debug(f"  解析成功 (YYYY-MM-DD): {result}")
+                    logger.info(f"  ✅ 解析成功 (YYYY-MM-DD): {result}")
                     return result
-                except:
+                except Exception as e:
+                    logger.warning(f"  ❌ 解析失败 (YYYY-MM-DD): {date_str}, 错误: {e}")
                     try:
                         result = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').date()
-                        logger.debug(f"  解析成功 (YYYY-MM-DD HH:MM:SS): {result}")
+                        logger.info(f"  ✅ 解析成功 (YYYY-MM-DD HH:MM:SS): {result}")
                         return result
-                    except:
-                        pass
+                    except Exception as e2:
+                        logger.warning(f"  ❌ 解析失败 (YYYY-MM-DD HH:MM:SS): {date_str}, 错误: {e2}")
             
             # 格式2: YYYY/MM/DD
             if '/' in date_str:
                 try:
                     result = datetime.strptime(date_str, '%Y/%m/%d').date()
-                    logger.debug(f"  解析成功 (YYYY/MM/DD): {result}")
+                    logger.info(f"  ✅ 解析成功 (YYYY/MM/DD): {result}")
                     return result
-                except:
+                except Exception as e:
+                    logger.warning(f"  ❌ 解析失败 (YYYY/MM/DD): {date_str}, 错误: {e}")
                     try:
                         result = datetime.strptime(date_str, '%Y/%m/%d %H:%M:%S').date()
-                        logger.debug(f"  解析成功 (YYYY/MM/DD HH:MM:SS): {result}")
+                        logger.info(f"  ✅ 解析成功 (YYYY/MM/DD HH:MM:SS): {result}")
                         return result
-                    except:
-                        pass
+                    except Exception as e2:
+                        logger.warning(f"  ❌ 解析失败 (YYYY/MM/DD HH:MM:SS): {date_str}, 错误: {e2}")
         
         # Excel数字日期（Excel序列日期）
         try:
             result = datetime.fromordinal(int(value) + 693594).date()
-            logger.debug(f"  日期格式: Excel数字 {value} -> {result}")
+            logger.info(f"  ✅ 日期格式: Excel数字 {value} -> {result}")
             return result
-        except:
-            logger.warning(f"  无法解析日期: {value} (type: {type(value)})")
+        except Exception as e:
+            logger.warning(f"  ❌ 无法解析日期: {value} (type: {type(value)}), 错误: {e}")
             return None
     
     def _parse_int(self, value, default: int = 0) -> int:
