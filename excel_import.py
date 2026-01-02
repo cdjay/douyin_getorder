@@ -10,6 +10,7 @@ import logging
 from datetime import datetime
 from config import config
 from database import DatabaseManager
+from task_manager import TaskManager
 from excel_importer import ExcelImporter
 
 # 配置日志
@@ -45,6 +46,9 @@ class ExcelImportLoop:
         
         # 初始化Excel导入器
         self.excel_importer = ExcelImporter(self.db_manager)
+        
+        # 初始化任务管理器
+        self.task_manager = TaskManager(self.db_manager, 'excel_import')
         
         # 运行标志
         self._running = False
@@ -116,19 +120,32 @@ class ExcelImportLoop:
         logger.info("启动Excel导入程序")
         self._running = True
         
+        # 更新初始状态
+        self.task_manager.set_task_status('RUNNING')
+        
         try:
             while self._running:
                 logger.info("开始新一轮扫描")
+                
+                # 更新心跳
+                self.task_manager.update_heartbeat()
                 
                 # 扫描并导入Excel文件
                 try:
                     imported_count = self.run_once()
                     if imported_count > 0:
                         logger.info(f"✅ 导入完成: {imported_count} 条记录")
+                        
+                        # 导入成功，更新状态
+                        self.task_manager.set_task_status(
+                            'RUNNING',
+                            last_sync_time=datetime.now().isoformat()
+                        )
                     else:
                         logger.info("没有新的Excel文件")
                 except Exception as e:
                     logger.error(f"扫描过程出错: {e}", exc_info=True)
+                    self.task_manager.set_task_status('ERROR', error_message=str(e))
                 
                 # 休息10秒（快速扫描）
                 wait_time = 10
@@ -146,6 +163,14 @@ class ExcelImportLoop:
         停止程序，执行清理工作
         """
         logger.info("停止程序，执行清理工作...")
+        
+        try:
+            # 更新任务状态为 STOPPED
+            self.task_manager.set_task_status('STOPPED')
+            logger.info("任务状态已更新为 STOPPED")
+        except Exception as e:
+            logger.error(f"更新任务状态失败: {e}")
+        
         logger.info("程序已停止")
 
 
