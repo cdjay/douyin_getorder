@@ -34,28 +34,43 @@ class ExcelImporter:
             Excel数据列表（每行一个字典）
         """
         try:
-            # 打开Excel文件
-            wb = openpyxl.load_workbook(file_path, read_only=True)
+            # 使用data_only=True模式，更稳定
+            wb = openpyxl.load_workbook(file_path, data_only=True)
             ws = wb.active
+            
+            # 调试信息
+            logger.info(f"  打开工作表: {ws.title}")
+            logger.info(f"  总行数: {ws.max_row}")
             
             # 获取表头（第一行）
             headers = [cell.value for cell in ws[1]]
+            logger.info(f"  表头: {headers[:5]}...")  # 只打印前5个
             
             # 读取数据行
             data = []
-            for row in ws.iter_rows(min_row=2, values_only=True):
+            empty_rows = 0
+            for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                # 检查空行
+                if not any(row):
+                    empty_rows += 1
+                    continue
+                
                 row_dict = {}
-                for i, value in enumerate(row):
-                    if i < len(headers):
-                        row_dict[headers[i]] = value
+                for j, value in enumerate(row):
+                    if j < len(headers):
+                        row_dict[headers[j]] = value
                 data.append(row_dict)
+                
+                # 每1000行打印一次进度
+                if len(data) % 1000 == 0:
+                    logger.info(f"  已读取 {len(data)} 行...")
             
+            logger.info(f"  读取完成: {len(data)} 行有效数据 (跳过 {empty_rows} 行空数据)")
             wb.close()
-            logger.info(f"读取Excel文件: {file_path}, 共 {len(data)} 行")
             return data
             
         except Exception as e:
-            logger.error(f"读取Excel失败 {file_path}: {e}")
+            logger.error(f"读取Excel失败 {file_path}: {e}", exc_info=True)
             raise
     
     def read_sheet(self, sheet) -> List[Dict[str, Any]]:
@@ -69,22 +84,37 @@ class ExcelImporter:
             数据列表
         """
         try:
+            # 调试信息
+            logger.info(f"  打开工作表: {sheet.title}")
+            logger.info(f"  总行数: {sheet.max_row}")
+            
             # 获取表头（第一行）
             headers = [cell.value for cell in sheet[1]]
+            logger.info(f"  表头: {headers[:5]}...")  # 只打印前5个
             
             # 读取数据行
             data = []
-            for row in sheet.iter_rows(min_row=2, values_only=True):
+            empty_rows = 0
+            for i, row in enumerate(sheet.iter_rows(min_row=2, values_only=True), start=2):
+                # 检查空行
+                if not any(row):
+                    empty_rows += 1
+                    continue
+                
                 row_dict = {}
-                for i, value in enumerate(row):
-                    if i < len(headers):
-                        row_dict[headers[i]] = value
+                for j, value in enumerate(row):
+                    if j < len(headers):
+                        row_dict[headers[j]] = value
                 data.append(row_dict)
+                
+                # 每1000行打印一次进度
+                if len(data) % 1000 == 0:
+                    logger.info(f"  已读取 {len(data)} 行...")
             
-            logger.info(f"读取工作表 {sheet.title}: {len(data)} 行")
+            logger.info(f"  读取完成: {len(data)} 行有效数据 (跳过 {empty_rows} 行空数据)")
             return data
         except Exception as e:
-            logger.error(f"读取工作表失败: {e}")
+            logger.error(f"读取工作表失败: {e}", exc_info=True)
             return []
     
     def parse_sales_data(self, excel_data: List[Dict[str, Any]], file_name: str) -> List[Dict[str, Any]]:
@@ -254,13 +284,20 @@ class ExcelImporter:
         total_imported = 0
         
         try:
-            # 打开Excel文件
-            wb = openpyxl.load_workbook(file_path, read_only=True)
+            # 使用data_only=True模式，更稳定
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            
+            logger.info(f"  发现 {len(wb.worksheets)} 个工作表")
             
             # 遍历所有工作表
             for sheet in wb.worksheets:
                 sheet_name = sheet.title
-                logger.info(f"  读取工作表: {sheet_name}")
+                logger.info(f"  检查工作表: {sheet_name}")
+                
+                # 跳过说明类sheet
+                if '说明' in sheet_name:
+                    logger.info(f"  跳过非数据工作表: {sheet_name}")
+                    continue
                 
                 # 读取数据
                 excel_data = self.read_sheet(sheet)
@@ -277,7 +314,7 @@ class ExcelImporter:
             return total_imported
             
         except Exception as e:
-            logger.error(f"导入旅行社预约明细失败 {file_name}: {e}")
+            logger.error(f"导入旅行社预约明细失败 {file_name}: {e}", exc_info=True)
             raise
     
     def scan_and_import(self, data_dir: str = 'data') -> int:
