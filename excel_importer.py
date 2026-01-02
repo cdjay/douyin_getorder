@@ -176,6 +176,10 @@ class ExcelImporter:
         """
         parsed_data = []
         
+        # 打印前3条数据的原始值，用于调试
+        for i, row in enumerate(excel_data[:3]):
+            logger.info(f"  示例数据 {i+1}: 订单编号={row.get('订单编号')}, 出行日期={row.get('出行日期')}, 类型={type(row.get('出行日期'))}")
+        
         for row in excel_data:
             # 构建数据库记录
             record = {
@@ -211,40 +215,56 @@ class ExcelImporter:
         
         # 已经是datetime或date对象
         if isinstance(value, datetime):
+            logger.debug(f"  日期格式: datetime -> {value}")
             return value.date()
         if isinstance(value, date):
+            logger.debug(f"  日期格式: date -> {value}")
             return value
         
         # 字符串格式：尝试解析常见日期格式
         if isinstance(value, str):
             date_str = value.strip()
+            logger.debug(f"  日期格式: string -> {date_str}")
+            
             if not date_str:
+                logger.warning(f"  日期为空字符串")
                 return None
             
             # 格式1: YYYY-MM-DD
             if '-' in date_str:
                 try:
-                    return datetime.strptime(date_str, '%Y-%m-%d').date()
+                    result = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    logger.debug(f"  解析成功 (YYYY-MM-DD): {result}")
+                    return result
                 except:
                     try:
-                        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').date()
+                        result = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').date()
+                        logger.debug(f"  解析成功 (YYYY-MM-DD HH:MM:SS): {result}")
+                        return result
                     except:
                         pass
             
             # 格式2: YYYY/MM/DD
             if '/' in date_str:
                 try:
-                    return datetime.strptime(date_str, '%Y/%m/%d').date()
+                    result = datetime.strptime(date_str, '%Y/%m/%d').date()
+                    logger.debug(f"  解析成功 (YYYY/MM/DD): {result}")
+                    return result
                 except:
                     try:
-                        return datetime.strptime(date_str, '%Y/%m/%d %H:%M:%S').date()
+                        result = datetime.strptime(date_str, '%Y/%m/%d %H:%M:%S').date()
+                        logger.debug(f"  解析成功 (YYYY/MM/DD HH:MM:SS): {result}")
+                        return result
                     except:
                         pass
         
         # Excel数字日期（Excel序列日期）
         try:
-            return datetime.fromordinal(int(value) + 693594).date()
+            result = datetime.fromordinal(int(value) + 693594).date()
+            logger.debug(f"  日期格式: Excel数字 {value} -> {result}")
+            return result
         except:
+            logger.warning(f"  无法解析日期: {value} (type: {type(value)})")
             return None
     
     def _parse_int(self, value, default: int = 0) -> int:
