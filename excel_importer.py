@@ -335,6 +335,8 @@ class ExcelImporter:
         """
         导入旅行社预约明细Excel
         
+        收集所有sheet的数据后统一保存，避免分sheet删除导致数据丢失
+        
         Args:
             file_path: Excel文件路径
             file_name: 文件名（仅用于日志）
@@ -344,7 +346,8 @@ class ExcelImporter:
         """
         logger.info(f"开始导入旅行社预约明细: {file_name}")
         
-        total_imported = 0
+        # 收集所有sheet的数据
+        all_booking_data = []
         
         try:
             # 使用data_only=True模式，更稳定
@@ -368,13 +371,17 @@ class ExcelImporter:
                 # 解析数据
                 parsed_data = self.parse_travel_booking_data(excel_data, sheet_name)
                 
-                # 保存到数据库
-                saved_count = self.db_manager.save_travel_bookings(parsed_data)
-                total_imported += saved_count
+                # 收集到总列表
+                all_booking_data.extend(parsed_data)
             
             wb.close()
-            logger.info(f"✅ 旅行社预约明细导入完成: {total_imported} 条记录")
-            return total_imported
+            
+            # 统一保存所有数据
+            logger.info(f"  收集完成: 共 {len(all_booking_data)} 条记录")
+            saved_count = self.db_manager.save_travel_bookings(all_booking_data)
+            
+            logger.info(f"✅ 旅行社预约明细导入完成: {saved_count} 条记录")
+            return saved_count
             
         except Exception as e:
             logger.error(f"导入旅行社预约明细失败 {file_name}: {e}", exc_info=True)
