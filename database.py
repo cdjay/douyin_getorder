@@ -603,7 +603,9 @@ class DatabaseManager:
     
     def save_travel_bookings(self, booking_data: List[Dict[str, Any]]) -> int:
         """
-        保存旅行社预约明细数据到数据库
+        保存旅行社预约明细数据到数据库（全量更新）
+        
+        每次导入都是全量更新：删除所有旧数据，插入新数据
         
         Args:
             booking_data: 预约数据列表
@@ -614,30 +616,23 @@ class DatabaseManager:
         if not booking_data:
             return 0
         
-        logger.info(f"  准备保存 {len(booking_data)} 条记录到数据库")
+        logger.info(f"  准备全量更新 {len(booking_data)} 条记录")
         
         session = self.get_session()
         try:
-            # 使用 PostgreSQL 的 ON CONFLICT 实现 Upsert
-            # 唯一键：order_number
-            # 冲突时更新所有字段（包括travel_date）
-            stmt = pg_insert(TravelBooking).values(booking_data)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=['order_number'],
-                set_={
-                    'travel_date': stmt.excluded.travel_date,
-                    'booking_status': stmt.excluded.booking_status,
-                    'booking_count': stmt.excluded.booking_count,
-                    'raw_excel': stmt.excluded.raw_excel,
-                    'import_time': stmt.excluded.import_time
-                }
-            )
+            # 步骤1：删除所有旧数据
+            deleted_count = session.query(TravelBooking).delete()
+            logger.info(f"  删除旧数据: {deleted_count} 条")
             
-            result = session.execute(stmt)
+            # 步骤2：批量插入新数据
+            session.bulk_insert_mappings(TravelBooking, booking_data)
+            logger.info(f"  插入新数据: {len(booking_data)} 条")
+            
+            # 提交事务
             session.commit()
+            logger.info(f"  ✅ 全量更新完成: {len(booking_data)} 条记录")
             
-            logger.info(f"  ✅ 数据库更新: {result.rowcount} 条记录")
-            return result.rowcount
+            return len(booking_data)
         except Exception as e:
             session.rollback()
             logger.error(f"  ❌ 数据库写入失败: {e}", exc_info=True)
