@@ -597,9 +597,11 @@ class DatabaseManager:
         """
         logger.info("开始数据库模型迁移...")
         
-        # 遍历所有注册的模型
-        for table_name, table_class in Base._decl_class_registry.items():
-            if hasattr(table_class, '__tablename__'):
-                self.ensure_columns(table_class)
+        # 直接指定要迁移的模型（兼容所有SQLAlchemy版本）
+        models_to_migrate = [Order, TaskMonitor]
+        
+        for model_class in models_to_migrate:
+            if hasattr(model_class, '__tablename__'):
+                self.ensure_columns(model_class)
         
         logger.info("数据库模型迁移完成")
