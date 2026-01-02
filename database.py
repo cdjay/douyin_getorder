@@ -116,10 +116,8 @@ class TravelBooking(Base):
     # 原始数据
     raw_excel = Column(JSONB, comment='原始Excel数据')
     
-    # 文件信息
-    file_name = Column(String(255), comment='Excel文件名')
+    # 导入时间
     import_time = Column(DateTime, default=datetime.now, comment='导入时间')
-    sheet_name = Column(String(100), comment='Excel工作表名')
 
 
 class DatabaseManager:
@@ -603,14 +601,12 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def save_travel_bookings(self, booking_data: List[Dict[str, Any]], file_name: str, sheet_name: str) -> int:
+    def save_travel_bookings(self, booking_data: List[Dict[str, Any]]) -> int:
         """
         保存旅行社预约明细数据到数据库
         
         Args:
             booking_data: 预约数据列表
-            file_name: Excel文件名
-            sheet_name: 工作表名
             
         Returns:
             int: 成功保存的记录数
@@ -621,7 +617,7 @@ class DatabaseManager:
         session = self.get_session()
         try:
             # 使用 PostgreSQL 的 ON CONFLICT 实现 Upsert
-            # 唯一键：order_number + sheet_name
+            # 唯一键：order_number
             stmt = pg_insert(TravelBooking).values(booking_data)
             stmt = stmt.on_conflict_do_nothing()  # 重复则跳过
             

@@ -163,13 +163,12 @@ class ExcelImporter:
         logger.info(f"解析完成: {len(parsed_data)} 条记录")
         return parsed_data
     
-    def parse_travel_booking_data(self, excel_data: List[Dict[str, Any]], file_name: str, sheet_name: str) -> List[Dict[str, Any]]:
+    def parse_travel_booking_data(self, excel_data: List[Dict[str, Any]], sheet_name: str) -> List[Dict[str, Any]]:
         """
         解析旅行社预约明细数据
         
         Args:
             excel_data: Excel原始数据
-            file_name: 文件名
             sheet_name: 工作表名
             
         Returns:
@@ -183,10 +182,8 @@ class ExcelImporter:
                 'order_number': str(row.get('订单编号', '')) if row.get('订单编号') else None,
                 'travel_date': self._parse_date(row.get('出行日期')),
                 'booking_status': self._parse_booking_status(sheet_name),
-                'booking_count': self._parse_int(row.get('预约份数', 1)),  # 添加预约份数
+                'booking_count': self._parse_int(row.get('预约份数', 1)),
                 'raw_excel': row,  # 原始数据
-                'file_name': file_name,
-                'sheet_name': sheet_name,
                 'import_time': datetime.now()
             }
             
@@ -208,14 +205,43 @@ class ExcelImporter:
             return None
     
     def _parse_date(self, value) -> date:
-        """解析日期"""
+        """解析日期（支持多种格式）"""
         if value is None:
             return None
+        
+        # 已经是datetime或date对象
         if isinstance(value, datetime):
             return value.date()
         if isinstance(value, date):
             return value
-        # Excel日期是数字，需要转换
+        
+        # 字符串格式：尝试解析常见日期格式
+        if isinstance(value, str):
+            date_str = value.strip()
+            if not date_str:
+                return None
+            
+            # 格式1: YYYY-MM-DD
+            if '-' in date_str:
+                try:
+                    return datetime.strptime(date_str, '%Y-%m-%d').date()
+                except:
+                    try:
+                        return datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S').date()
+                    except:
+                        pass
+            
+            # 格式2: YYYY/MM/DD
+            if '/' in date_str:
+                try:
+                    return datetime.strptime(date_str, '%Y/%m/%d').date()
+                except:
+                    try:
+                        return datetime.strptime(date_str, '%Y/%m/%d %H:%M:%S').date()
+                    except:
+                        pass
+        
+        # Excel数字日期（Excel序列日期）
         try:
             return datetime.fromordinal(int(value) + 693594).date()
         except:
@@ -284,7 +310,7 @@ class ExcelImporter:
         
         Args:
             file_path: Excel文件路径
-            file_name: 文件名
+            file_name: 文件名（仅用于日志）
             
         Returns:
             int: 导入的记录数
@@ -313,10 +339,10 @@ class ExcelImporter:
                 excel_data = self.read_sheet(sheet)
                 
                 # 解析数据
-                parsed_data = self.parse_travel_booking_data(excel_data, file_name, sheet_name)
+                parsed_data = self.parse_travel_booking_data(excel_data, sheet_name)
                 
                 # 保存到数据库
-                saved_count = self.db_manager.save_travel_bookings(parsed_data, file_name, sheet_name)
+                saved_count = self.db_manager.save_travel_bookings(parsed_data)
                 total_imported += saved_count
             
             wb.close()
