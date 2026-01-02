@@ -183,6 +183,7 @@ class ExcelImporter:
                 'order_number': str(row.get('订单编号', '')) if row.get('订单编号') else None,
                 'travel_date': self._parse_date(row.get('出行日期')),
                 'booking_status': self._parse_booking_status(sheet_name),
+                'booking_count': self._parse_int(row.get('预约份数', 1)),  # 添加预约份数
                 'raw_excel': row,  # 原始数据
                 'file_name': file_name,
                 'sheet_name': sheet_name,
@@ -219,6 +220,15 @@ class ExcelImporter:
             return datetime.fromordinal(int(value) + 693594).date()
         except:
             return None
+    
+    def _parse_int(self, value, default: int = 0) -> int:
+        """解析整数"""
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except:
+            return default
     
     def _parse_float(self, value) -> float:
         """解析浮点数"""

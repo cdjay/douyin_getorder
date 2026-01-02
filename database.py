@@ -111,6 +111,7 @@ class TravelBooking(Base):
     order_number = Column(String(64), index=True, comment='订单编号')
     travel_date = Column(Date, comment='出行日期')
     booking_status = Column(String(32), comment='预约状态')
+    booking_count = Column(Integer, default=1, comment='预约份数')
     
     # 原始数据
     raw_excel = Column(JSONB, comment='原始Excel数据')
