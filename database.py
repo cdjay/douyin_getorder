@@ -510,3 +510,96 @@ class DatabaseManager:
             raise e
         finally:
             session.close()
+    
+    def ensure_columns(self, model_class):
+        """
+        通用字段迁移：确保模型的所有字段都存在于数据库中
+        
+        自动对比模型定义和实际表结构，添加缺失的字段
+        
+        Args:
+            model_class: SQLAlchemy模型类（如Order、TaskMonitor）
+        """
+        try:
+            table_name = model_class.__tablename__
+            logger.info(f"检查表 {table_name} 的字段...")
+            
+            session = self.get_session()
+            
+            # 获取模型中定义的所有列
+            model_columns = {c.name: c for c in model_class.__table__.columns}
+            
+            # 获取数据库中实际存在的列
+            result = session.execute(text(f"""
+                SELECT column_name, data_type, column_default 
+                FROM information_schema.columns 
+                WHERE table_name = '{table_name}'
+            """))
+            db_columns = {row[0]: row for row in result.fetchall()}
+            
+            # 找出缺失的字段
+            missing_columns = set(model_columns.keys()) - set(db_columns.keys())
+            
+            if missing_columns:
+                logger.info(f"检测到表 {table_name} 缺少 {len(missing_columns)} 个字段: {missing_columns}")
+                
+                # 为每个缺失的字段生成ALTER TABLE语句
+                for col_name in missing_columns:
+                    column = model_columns[col_name]
+                    
+                    # 构建列定义
+                    col_type = str(column.type)
+                    
+                    # 处理默认值
+                    default_value = ""
+                    if column.default is not None:
+                        if hasattr(column.default, 'arg'):
+                            default_val = column.default.arg
+                            if isinstance(default_val, str):
+                                default_value = f" DEFAULT '{default_val}'"
+                            else:
+                                default_value = f" DEFAULT {default_val}"
+                    
+                    # 处理nullable
+                    nullable = "" if column.nullable else " NOT NULL"
+                    
+                    # 生成ALTER TABLE语句
+                    alter_sql = f"""
+                        ALTER TABLE {table_name} 
+                        ADD COLUMN IF NOT EXISTS {col_name} {col_type}{nullable}{default_value}
+                    """
+                    
+                    logger.info(f"  添加字段: {col_name} ({col_type})")
+                    session.execute(text(alter_sql))
+                    
+                    # 添加注释（如果有）
+                    if column.comment:
+                        session.execute(text(f"""
+                            COMMENT ON COLUMN {table_name}.{col_name} IS '{column.comment}'
+                        """))
+                
+                session.commit()
+                logger.info(f"✓ 表 {table_name} 字段迁移完成")
+            else:
+                logger.info(f"✓ 表 {table_name} 字段完整")
+            
+            session.close()
+            
+        except Exception as e:
+            logger.error(f"表 {model_class.__tablename__} 字段迁移失败: {e}")
+            raise
+    
+    def migrate_all_models(self):
+        """
+        迁移所有模型的字段
+        
+        一次性检查所有定义的模型，确保表结构一致
+        """
+        logger.info("开始数据库模型迁移...")
+        
+        # 遍历所有注册的模型
+        for table_name, table_class in Base._decl_class_registry.items():
+            if hasattr(table_class, '__tablename__'):
+                self.ensure_columns(table_class)
+        
+        logger.info("数据库模型迁移完成")
