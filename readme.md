@@ -1,6 +1,6 @@
-# 抖音生活服务订单同步系统
+# 抖音来客订单同步系统 (Douyin Life Order Sync)
 
-自动从抖音开放平台拉取生活服务订单数据并存储到PostgreSQL数据库。
+自动从抖音开放平台拉取本地生活订单数据并存储到PostgreSQL数据库。
 
 ## ✨ 功能特性
 
@@ -65,7 +65,7 @@ cp .env.example .env
 | `DB_URL` | 数据库连接字符串 | 自行配置PostgreSQL |
 | `APPID` | 抖音应用ID | [抖音开放平台](https://open.douyin.com/) |
 | `AppSecret` | 抖音应用密钥 | [抖音开放平台](https://open.douyin.com/) |
-| `ACCOUNT_ID` | 抖音账号ID | [抖音开放平台](https://open.douyin.com/) |
+| `ACCOUNT_ID` | 抖音账号ID | [抖音开放平台](https://open.douyin.com/) / [life.douyin.com](https://life.douyin.com/) |
 
 ### 5. 运行程序
 
