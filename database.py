@@ -570,13 +570,13 @@ class DatabaseManager:
         finally:
             session.close()
     
-    def save_excel_orders(self, excel_data: List[Dict[str, Any]], file_name: str) -> int:
+    def save_excel_orders(self, excel_data: List[Dict[str, Any]], file_name: str = None) -> int:
         """
         保存售卖明细Excel数据到数据库
         
         Args:
             excel_data: Excel数据列表
-            file_name: Excel文件名
+            file_name: Excel文件名（已废弃，保留参数兼容性）
             
         Returns:
             int: 成功保存的记录数
@@ -587,9 +587,9 @@ class DatabaseManager:
         session = self.get_session()
         try:
             # 使用 PostgreSQL 的 ON CONFLICT 实现 Upsert
-            # 唯一键：sub_order_id
+            # 唯一键：order_id + sub_order_id（约束名：orders_excel_unique_order_sub）
             stmt = pg_insert(OrderExcel).values(excel_data)
-            stmt = stmt.on_conflict_do_nothing()  # 重复则跳过
+            stmt = stmt.on_conflict_do_nothing(constraint='orders_excel_unique_order_sub')  # 重复则跳过
             
             result = session.execute(stmt)
             session.commit()

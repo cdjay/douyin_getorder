@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-执行视图创建SQL脚本
+执行orders_excel表迁移脚本
 """
-import psycopg2
 import logging
+import psycopg2
 from dotenv import load_dotenv
 import os
 
@@ -114,23 +114,23 @@ def main():
         return
     
     logger.info("=" * 60)
-    logger.info("开始创建视图")
+    logger.info("开始orders_excel表迁移")
     logger.info("=" * 60)
     
-    # 创建valid_orders视图
-    sql_valid = read_sql_file('create_view_valid_orders.sql')
+    # 读取迁移SQL
+    sql_migration = read_sql_file('migrate_orders_excel.sql')
     success = execute_sql(
         db_url,
-        sql_valid,
-        "创建valid_orders视图"
+        sql_migration,
+        "orders_excel表迁移：清空数据并添加唯一约束"
     )
     
     # 总结
     logger.info("=" * 60)
     if success:
-        logger.info("🎉 视图创建成功！")
+        logger.info("🎉 迁移完成！现在可以重新导入Excel数据了。")
     else:
-        logger.error("❌ 视图创建失败")
+        logger.error("❌ 迁移失败！")
     logger.info("=" * 60)
 
 

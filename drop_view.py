@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-执行视图创建SQL脚本
+执行删除order_details_aggregated视图
 """
 import psycopg2
-import logging
 from dotenv import load_dotenv
 import os
+import logging
 
 # 加载环境变量
 load_dotenv('.env')
@@ -17,52 +17,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def read_sql_file(file_path: str) -> str:
+def execute_sql_file(db_url: str, file_path: str, description: str) -> bool:
     """
-    读取SQL文件内容
-    
-    Args:
-        file_path: SQL文件路径
-        
-    Returns:
-        str: SQL内容
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        logger.error(f"读取SQL文件失败 {file_path}: {e}")
-        raise
-
-
-def execute_sql(db_url: str, sql: str, description: str) -> bool:
-    """
-    执行SQL语句
+    执行SQL文件
     
     Args:
         db_url: 数据库连接URL
-        sql: SQL语句
+        file_path: SQL文件路径
         description: 操作描述
         
     Returns:
         bool: 执行是否成功
     """
     try:
+        # 读取SQL文件
+        with open(file_path, 'r', encoding='utf-8') as f:
+            sql = f.read()
+        
         # 解析数据库连接参数
-        # 格式：postgresql://username:password@host:port/database
         if db_url.startswith('postgresql://'):
-            # 移除 postgresql:// 前缀
             db_url = db_url.replace('postgresql://', '')
         
-        # 解析连接参数
         parts = db_url.split('@')
-        if len(parts) != 2:
-            raise ValueError(f"数据库URL格式错误: {db_url}")
-        
         user_password, host_db = parts
         user, password = user_password.split(':', 1)
         
-        # 解析主机和端口
         host_port, database = host_db.split('/', 1)
         
         if ':' in host_port:
@@ -70,7 +49,7 @@ def execute_sql(db_url: str, sql: str, description: str) -> bool:
             port = int(port)
         else:
             host = host_port
-            port = 5432  # 默认端口
+            port = 5432
         
         # 连接数据库
         logger.info(f"连接数据库: {host}:{port}/{database}")
@@ -88,11 +67,15 @@ def execute_sql(db_url: str, sql: str, description: str) -> bool:
         logger.info(f"执行SQL: {description}")
         cursor.execute(sql)
         
-        # 提交事务
+        # 获取结果
+        if cursor.description:
+            results = cursor.fetchall()
+            for row in results:
+                logger.info(f"  {row}")
+        
         conn.commit()
         logger.info(f"✅ 执行成功: {description}")
         
-        # 关闭连接
         cursor.close()
         conn.close()
         
@@ -106,7 +89,6 @@ def execute_sql(db_url: str, sql: str, description: str) -> bool:
 
 def main():
     """主函数"""
-    # 读取数据库URL
     db_url = os.getenv('DB_URL')
     
     if not db_url:
@@ -114,23 +96,20 @@ def main():
         return
     
     logger.info("=" * 60)
-    logger.info("开始创建视图")
+    logger.info("删除order_details_aggregated视图")
     logger.info("=" * 60)
     
-    # 创建valid_orders视图
-    sql_valid = read_sql_file('create_view_valid_orders.sql')
-    success = execute_sql(
+    success = execute_sql_file(
         db_url,
-        sql_valid,
-        "创建valid_orders视图"
+        'drop_aggregated_view.sql',
+        "删除order_details_aggregated视图"
     )
     
-    # 总结
     logger.info("=" * 60)
     if success:
-        logger.info("🎉 视图创建成功！")
+        logger.info("🎉 视图删除成功！")
     else:
-        logger.error("❌ 视图创建失败")
+        logger.error("❌ 视图删除失败！")
     logger.info("=" * 60)
 
 
